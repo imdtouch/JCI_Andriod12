@@ -74,6 +74,14 @@
         <receiver
             android:name="com.example.jci_andriod12.UpdateReceiver"
             android:exported="false" />
+
+        <receiver
+            android:name="com.example.jci_andriod12.PackageReplacedReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>
