@@ -70,8 +70,10 @@ class FullAdminActivity : ComponentActivity() {
         }
         
         val pkgInfo = packageManager.getPackageInfo(packageName, 0)
+        val updateDate = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault())
+            .format(java.util.Date(pkgInfo.lastUpdateTime))
         val versionInfo = TextView(this).apply {
-            text = "Version ${pkgInfo.versionName} (Build ${pkgInfo.longVersionCode})"
+            text = "Version ${pkgInfo.versionName} - $updateDate"
             textSize = 14f
             setTextColor(Color.DKGRAY)
             gravity = Gravity.CENTER
