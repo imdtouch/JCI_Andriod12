@@ -10,6 +10,7 @@ import android.graphics.Typeface
 import android.os.Bundle
 import android.text.InputType
 import android.preference.PreferenceManager
+import android.net.wifi.WifiManager
 import android.provider.Settings
  
 import android.util.TypedValue
@@ -70,7 +71,7 @@ class FullAdminActivity : ComponentActivity() {
         
         val pkgInfo = packageManager.getPackageInfo(packageName, 0)
         val versionInfo = TextView(this).apply {
-            text = "Version ${pkgInfo.versionName} (Build ${pkgInfo.longVersionCode})\nUpdated: Jan 8, 2026"
+            text = "Version ${pkgInfo.versionName} (Build ${pkgInfo.longVersionCode})"
             textSize = 14f
             setTextColor(Color.DKGRAY)
             gravity = Gravity.CENTER
@@ -82,6 +83,7 @@ class FullAdminActivity : ComponentActivity() {
         // Simple buttons
         val buttons = listOf(
             createSimpleButton("Settings") { showSettingsDialog() },
+            createSimpleButton("WiFi Settings") { showWifiDialog() },
             createSimpleButton("Check for Updates") { checkForUpdates() },
             createSimpleButton("Rollback Version") { showRollbackDialog() },
             createSimpleButton("Exit Kiosk Mode") { exitKioskMode() },
@@ -149,26 +151,90 @@ class FullAdminActivity : ComponentActivity() {
         Toast.makeText(this, "Checking for updates...", Toast.LENGTH_SHORT).show()
         scope.launch {
             val updateManager = UpdateManager(this@FullAdminActivity)
-            val update = updateManager.checkForUpdate()
-            if (update != null) {
-                AlertDialog.Builder(this@FullAdminActivity)
-                    .setTitle("Update Available")
-                    .setMessage("Version ${update.versionName} is available. Install now?")
-                    .setPositiveButton("Install") { _, _ ->
-                        Toast.makeText(this@FullAdminActivity, "Downloading update...", Toast.LENGTH_SHORT).show()
-                        scope.launch {
-                            val success = updateManager.downloadAndInstall(update)
-                            if (!success) {
-                                Toast.makeText(this@FullAdminActivity, "Update failed", Toast.LENGTH_SHORT).show()
+            when (val result = updateManager.checkForUpdate()) {
+                is UpdateManager.UpdateResult.Available -> {
+                    val update = result.info
+                    AlertDialog.Builder(this@FullAdminActivity)
+                        .setTitle("Update Available")
+                        .setMessage("Version ${update.versionName} is available. Install now?")
+                        .setPositiveButton("Install") { _, _ ->
+                            Toast.makeText(this@FullAdminActivity, "Downloading update...", Toast.LENGTH_SHORT).show()
+                            scope.launch {
+                                val success = updateManager.downloadAndInstall(update)
+                                if (!success) {
+                                    Toast.makeText(this@FullAdminActivity, "Update failed", Toast.LENGTH_SHORT).show()
+                                }
                             }
                         }
-                    }
-                    .setNegativeButton("Later", null)
-                    .show()
-            } else {
-                Toast.makeText(this@FullAdminActivity, "App is up to date", Toast.LENGTH_SHORT).show()
+                        .setNegativeButton("Later", null)
+                        .show()
+                }
+                is UpdateManager.UpdateResult.UpToDate -> {
+                    Toast.makeText(this@FullAdminActivity, "App is up to date", Toast.LENGTH_SHORT).show()
+                }
+                is UpdateManager.UpdateResult.NoInternet -> {
+                    AlertDialog.Builder(this@FullAdminActivity)
+                        .setTitle("No Internet Connection")
+                        .setMessage("Cannot check for updates. Please connect to WiFi first.")
+                        .setPositiveButton("WiFi Settings") { _, _ -> showWifiDialog() }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                }
+                is UpdateManager.UpdateResult.Error -> {
+                    Toast.makeText(this@FullAdminActivity, "Error: ${result.message}", Toast.LENGTH_SHORT).show()
+                }
             }
         }
+    }
+    
+    private fun showWifiDialog() {
+        val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpToPx(16), dpToPx(16), dpToPx(16), dpToPx(16))
+        }
+        
+        // WiFi status
+        val statusText = TextView(this).apply {
+            text = if (wifiManager.isWifiEnabled) "WiFi: Enabled" else "WiFi: Disabled"
+            textSize = 18f
+            setTextColor(Color.BLACK)
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        
+        // WiFi toggle
+        val wifiToggle = Switch(this).apply {
+            text = "Enable WiFi"
+            textSize = 16f
+            isChecked = wifiManager.isWifiEnabled
+            setOnCheckedChangeListener { _, isChecked ->
+                startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
+            }
+        }
+        
+        layout.addView(statusText, createLayoutParams(dpToPx(16)))
+        layout.addView(wifiToggle, createLayoutParams(dpToPx(24)))
+        
+        // Info text
+        val infoText = TextView(this).apply {
+            text = "Tap buttons below to access WiFi settings"
+            textSize = 14f
+            setTextColor(Color.GRAY)
+        }
+        layout.addView(infoText, createLayoutParams(dpToPx(8)))
+        
+        AlertDialog.Builder(this)
+            .setTitle("WiFi Settings")
+            .setView(layout)
+            .setPositiveButton("Open WiFi Settings") { _, _ ->
+                startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
+            }
+            .setNeutralButton("Network Settings") { _, _ ->
+                startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS))
+            }
+            .setNegativeButton("Close", null)
+            .show()
     }
     
     private fun showRollbackDialog() {

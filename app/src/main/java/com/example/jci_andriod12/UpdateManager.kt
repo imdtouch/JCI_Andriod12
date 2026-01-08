@@ -4,6 +4,8 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import kotlinx.coroutines.*
 import org.json.JSONArray
 import org.json.JSONObject
@@ -23,20 +25,37 @@ class UpdateManager(private val context: Context) {
     
     data class UpdateInfo(val versionCode: Int, val versionName: String, val apkUrl: String, val checksumUrl: String?)
     data class StoredVersion(val code: Int, val name: String, val file: String, val date: Long)
+    sealed class UpdateResult {
+        data class Available(val info: UpdateInfo) : UpdateResult()
+        object UpToDate : UpdateResult()
+        object NoInternet : UpdateResult()
+        data class Error(val message: String) : UpdateResult()
+    }
     
-    suspend fun checkForUpdate(): UpdateInfo? = withContext(Dispatchers.IO) {
+    fun hasInternet(): Boolean {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = cm.activeNetwork ?: return false
+        val caps = cm.getNetworkCapabilities(network) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+    
+    suspend fun checkForUpdate(): UpdateResult = withContext(Dispatchers.IO) {
+        if (!hasInternet()) return@withContext UpdateResult.NoInternet
+        
         try {
             val apiUrl = "https://api.github.com/repos/$GITHUB_OWNER/$GITHUB_REPO/releases/latest"
             val json = URL(apiUrl).openConnection().apply {
                 setRequestProperty("Accept", "application/vnd.github.v3+json")
+                connectTimeout = 10000
+                readTimeout = 10000
             }.getInputStream().bufferedReader().readText()
             
             val release = JSONObject(json)
             val tagName = release.getString("tag_name")
-            val remoteVersion = tagName.removePrefix("v").toIntOrNull() ?: return@withContext null
+            val remoteVersion = tagName.removePrefix("v").toIntOrNull() ?: return@withContext UpdateResult.Error("Invalid version")
             val currentVersion = context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
             
-            if (remoteVersion <= currentVersion) return@withContext null
+            if (remoteVersion <= currentVersion) return@withContext UpdateResult.UpToDate
             
             val assets = release.getJSONArray("assets")
             var apkUrl: String? = null
@@ -51,11 +70,17 @@ class UpdateManager(private val context: Context) {
                 }
             }
             
-            apkUrl?.let {
-                UpdateInfo(remoteVersion, tagName, it, checksumUrl)
+            if (apkUrl != null) {
+                UpdateResult.Available(UpdateInfo(remoteVersion, tagName, apkUrl, checksumUrl))
+            } else {
+                UpdateResult.Error("No APK in release")
             }
+        } catch (e: java.net.UnknownHostException) {
+            UpdateResult.NoInternet
+        } catch (e: java.net.SocketTimeoutException) {
+            UpdateResult.Error("Connection timed out")
         } catch (e: Exception) {
-            null
+            UpdateResult.Error("Connection failed")
         }
     }
     
