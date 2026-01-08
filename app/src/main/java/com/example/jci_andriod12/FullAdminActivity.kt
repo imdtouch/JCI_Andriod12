@@ -67,8 +67,17 @@ class FullAdminActivity : ComponentActivity() {
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
         }
+        
+        val pkgInfo = packageManager.getPackageInfo(packageName, 0)
+        val versionInfo = TextView(this).apply {
+            text = "Version ${pkgInfo.versionName} (Build ${pkgInfo.longVersionCode})\nUpdated: Jan 8, 2026"
+            textSize = 14f
+            setTextColor(Color.DKGRAY)
+            gravity = Gravity.CENTER
+        }
 
-        layout.addView(title, createLayoutParams(dpToPx(40)))
+        layout.addView(title, createLayoutParams(dpToPx(8)))
+        layout.addView(versionInfo, createLayoutParams(dpToPx(24)))
 
         // Simple buttons
         val buttons = listOf(
