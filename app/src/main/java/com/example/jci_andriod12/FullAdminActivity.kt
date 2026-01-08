@@ -203,22 +203,10 @@ class FullAdminActivity : ComponentActivity() {
             typeface = Typeface.DEFAULT_BOLD
         }
         
-        // WiFi toggle
-        val wifiToggle = Switch(this).apply {
-            text = "Enable WiFi"
-            textSize = 16f
-            isChecked = wifiManager.isWifiEnabled
-            setOnCheckedChangeListener { _, isChecked ->
-                startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
-            }
-        }
-        
         layout.addView(statusText, createLayoutParams(dpToPx(16)))
-        layout.addView(wifiToggle, createLayoutParams(dpToPx(24)))
         
-        // Info text
         val infoText = TextView(this).apply {
-            text = "Tap buttons below to access WiFi settings"
+            text = "Use buttons below to configure WiFi"
             textSize = 14f
             setTextColor(Color.GRAY)
         }

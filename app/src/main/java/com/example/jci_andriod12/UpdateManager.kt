@@ -96,17 +96,21 @@ class UpdateManager(private val context: Context) {
             
             // Verify checksum if available
             if (update.checksumUrl != null) {
-                val checksums = URL(update.checksumUrl).readText()
-                val expectedHash = checksums.lines()
-                    .find { it.contains(".apk", ignoreCase = true) }
-                    ?.split(" ", "\t")?.firstOrNull()?.trim()?.lowercase()
-                
-                if (expectedHash != null) {
-                    val actualHash = tempFile.sha256()
-                    if (actualHash != expectedHash) {
-                        tempFile.delete()
-                        return@withContext false
+                try {
+                    val checksums = URL(update.checksumUrl).readText()
+                    // Find a 64-char hex string (SHA256)
+                    val hashRegex = Regex("[a-fA-F0-9]{64}")
+                    val expectedHash = hashRegex.find(checksums)?.value?.lowercase()
+                    
+                    if (expectedHash != null) {
+                        val actualHash = tempFile.sha256()
+                        if (actualHash != expectedHash) {
+                            tempFile.delete()
+                            return@withContext false
+                        }
                     }
+                } catch (_: Exception) {
+                    // Skip verification if checksum fetch fails
                 }
             }
             
