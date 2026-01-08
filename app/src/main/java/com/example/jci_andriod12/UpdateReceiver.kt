@@ -10,10 +10,13 @@ class UpdateReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
             PackageInstaller.STATUS_SUCCESS -> {
-                Toast.makeText(context, "Update installed successfully", Toast.LENGTH_SHORT).show()
+                // Relaunch the app after successful update
+                val launchIntent = Intent(context, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                }
+                context.startActivity(launchIntent)
             }
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-                // If not device owner, this triggers manual install prompt
                 val confirmIntent = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
                 confirmIntent?.let {
                     it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
