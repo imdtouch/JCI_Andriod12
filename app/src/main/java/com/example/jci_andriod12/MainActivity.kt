@@ -1,6 +1,7 @@
 package com.example.jci_andriod12
 
-import android.app.Activity
+import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import android.app.AlertDialog
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
@@ -14,8 +15,6 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
-import android.preference.PreferenceManager
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.WindowInsets
@@ -26,12 +25,12 @@ import android.view.MenuItem
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageButton
-import android.widget.RelativeLayout
 import android.widget.SeekBar
 import android.widget.Button
+import android.view.WindowManager
  
 
-class MainActivity : Activity() {
+class MainActivity : ComponentActivity() {
     private lateinit var devicePolicyManager: DevicePolicyManager
     private lateinit var adminComponent: ComponentName
     
@@ -61,11 +60,12 @@ class MainActivity : Activity() {
         adminComponent = ComponentName(this, KioskDeviceAdminReceiver::class.java)
         
         // Load preferences
-        prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        prefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
         loadPreferences()
         
         // Setup WebView
         setupWebView()
+        setupBackHandler()
         
         window.decorView.setBackgroundResource(R.drawable.launcher_background)
         hideSystemUI()
@@ -81,7 +81,7 @@ class MainActivity : Activity() {
     
     private fun loadPreferences() {
         showBrowserControls = prefs.getBoolean("show_browser_controls", true)
-        defaultUrl = prefs.getString("default_url", "http://192.168.10.12") ?: "http://192.168.10.12"
+        defaultUrl = prefs.getString("default_url", "http://192.168.10.12/sdcard/cpt/app/signin.php") ?: "http://192.168.10.12/sdcard/cpt/app/signin.php"
         // Orientation handled via Android Display settings now
     }
     
@@ -143,6 +143,25 @@ class MainActivity : Activity() {
             val seekBar = findViewById<SeekBar>(R.id.zoomSeekBar)
             seekBar?.progress = 20 // Reset to 100% zoom (50% + 20*2.5 = 100%)
             kioskWebView.setZoom(1.0f)
+            resetControlsTimer()
+        }
+        
+        // Setup zoom +/- buttons
+        findViewById<Button>(R.id.zoomMinusButton)?.setOnClickListener {
+            val seekBar = findViewById<SeekBar>(R.id.zoomSeekBar) ?: return@setOnClickListener
+            val newProgress = (seekBar.progress - 10).coerceAtLeast(0)
+            seekBar.progress = newProgress
+            val zoomLevel = (50 + (newProgress * 2.5f)) / 100f
+            kioskWebView.setZoom(zoomLevel)
+            resetControlsTimer()
+        }
+        
+        findViewById<Button>(R.id.zoomPlusButton)?.setOnClickListener {
+            val seekBar = findViewById<SeekBar>(R.id.zoomSeekBar) ?: return@setOnClickListener
+            val newProgress = (seekBar.progress + 10).coerceAtMost(200)
+            seekBar.progress = newProgress
+            val zoomLevel = (50 + (newProgress * 2.5f)) / 100f
+            kioskWebView.setZoom(zoomLevel)
             resetControlsTimer()
         }
         
@@ -240,13 +259,17 @@ class MainActivity : Activity() {
         }
     }
     
-    override fun onBackPressed() {
-        // In kiosk mode, use WebView navigation if available, otherwise do nothing
-        if (kioskWebView.canGoBack()) {
-            kioskWebView.goBack()
-            invalidateOptionsMenu()
-        }
-        // Don't call super.onBackPressed() to prevent exiting kiosk mode
+    private fun setupBackHandler() {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                // In kiosk mode, use WebView navigation if available, otherwise do nothing
+                if (kioskWebView.canGoBack()) {
+                    kioskWebView.goBack()
+                    invalidateOptionsMenu()
+                }
+                // Don't finish activity to prevent exiting kiosk mode
+            }
+        })
     }
     
     private fun enableKioskMode() {
@@ -344,8 +367,6 @@ class MainActivity : Activity() {
             addCategory(Intent.CATEGORY_HOME)
         }
         val pm = packageManager
-        val activities = pm.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
-        
         val thisComponent = ComponentName(this, MainActivity::class.java)
         pm.setComponentEnabledSetting(
             thisComponent,
@@ -372,8 +393,12 @@ class MainActivity : Activity() {
         super.onResume()
         loadPreferences()
         hideSystemUI()
+        applyAlwaysOnDisplay()
         invalidateOptionsMenu() // Update menu state when resuming
         updateNavButtons()
+        if (this::kioskWebView.isInitialized) {
+            kioskWebView.restartIdleTimer()
+        }
         // Re-apply immersive shortly after resume to collapse any transient bars
         window.decorView.postDelayed({ hideSystemUI() }, 100)
         // Start periodic re-hide while activity is in foreground
@@ -382,6 +407,16 @@ class MainActivity : Activity() {
         uiHideHandler.postDelayed(dpmEnforceRunnable, 1000)
         uiHideHandler.postDelayed(dpmEnforceRunnable, 3000)
         uiHideHandler.postDelayed(dpmEnforceRunnable, 5000)
+    }
+
+    private fun applyAlwaysOnDisplay() {
+        val kioskPrefs = getSharedPreferences("kiosk_settings", Context.MODE_PRIVATE)
+        val alwaysOn = kioskPrefs.getBoolean("always_on_display", true)
+        if (alwaysOn) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -410,6 +445,9 @@ class MainActivity : Activity() {
         cm.requestNetwork(request, object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 cm.bindProcessToNetwork(network)
+            }
+            override fun onLost(network: Network) {
+                cm.bindProcessToNetwork(null) // Fall back to default (WiFi)
             }
         })
     }

@@ -32,19 +32,34 @@ class UpdateManager(private val context: Context) {
         data class Error(val message: String) : UpdateResult()
     }
     
-    fun hasInternet(): Boolean {
+    private fun getInternetNetwork(): android.net.Network? {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val network = cm.activeNetwork ?: return false
-        val caps = cm.getNetworkCapabilities(network) ?: return false
-        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        // Try WiFi first for internet
+        cm.allNetworks.forEach { network ->
+            val caps = cm.getNetworkCapabilities(network) ?: return@forEach
+            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) && 
+                caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
+                return network
+            }
+        }
+        // Fall back to any network with internet
+        cm.allNetworks.forEach { network ->
+            val caps = cm.getNetworkCapabilities(network) ?: return@forEach
+            if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
+                return network
+            }
+        }
+        return null
     }
     
+    fun hasInternet(): Boolean = getInternetNetwork() != null
+    
     suspend fun checkForUpdate(): UpdateResult = withContext(Dispatchers.IO) {
-        if (!hasInternet()) return@withContext UpdateResult.NoInternet
+        val network = getInternetNetwork() ?: return@withContext UpdateResult.NoInternet
         
         try {
             val apiUrl = "https://api.github.com/repos/$GITHUB_OWNER/$GITHUB_REPO/releases/latest"
-            val json = URL(apiUrl).openConnection().apply {
+            val json = network.openConnection(URL(apiUrl)).apply {
                 setRequestProperty("Accept", "application/vnd.github.v3+json")
                 connectTimeout = 10000
                 readTimeout = 10000
@@ -85,19 +100,20 @@ class UpdateManager(private val context: Context) {
     }
     
     suspend fun downloadAndInstall(update: UpdateInfo): Boolean = withContext(Dispatchers.IO) {
+        val network = getInternetNetwork() ?: return@withContext false
         try {
             val tempFile = File(updatesDir, "temp.apk")
             val finalFile = File(updatesDir, "v${update.versionCode}.apk")
             
-            // Download APK
-            URL(update.apkUrl).openStream().use { input ->
+            // Download APK via WiFi/internet network
+            network.openConnection(URL(update.apkUrl)).getInputStream().use { input ->
                 tempFile.outputStream().use { output -> input.copyTo(output) }
             }
             
             // Verify checksum if available
             if (update.checksumUrl != null) {
                 try {
-                    val checksums = URL(update.checksumUrl).readText()
+                    val checksums = network.openConnection(URL(update.checksumUrl)).getInputStream().bufferedReader().readText()
                     // Find a 64-char hex string (SHA256)
                     val hashRegex = Regex("[a-fA-F0-9]{64}")
                     val expectedHash = hashRegex.find(checksums)?.value?.lowercase()

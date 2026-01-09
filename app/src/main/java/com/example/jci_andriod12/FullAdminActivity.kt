@@ -9,10 +9,8 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Bundle
 import android.text.InputType
-import android.preference.PreferenceManager
 import android.net.wifi.WifiManager
 import android.provider.Settings
- 
 import android.util.TypedValue
 import android.view.Gravity
 import android.widget.Button
@@ -23,12 +21,12 @@ import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
-import kotlinx.coroutines.*
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 class FullAdminActivity : ComponentActivity() {
     private lateinit var devicePolicyManager: DevicePolicyManager
     private lateinit var adminComponent: ComponentName
-    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,25 +44,21 @@ class FullAdminActivity : ComponentActivity() {
         setupLayout()
     }
     
-    override fun onDestroy() {
-        super.onDestroy()
-        scope.cancel()
-    }
-    
     private fun setupLayout() {
+        val scrollView = android.widget.ScrollView(this).apply {
+            setBackgroundColor(Color.parseColor("#1a1a2e"))
+        }
+        
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setBackgroundColor(Color.WHITE)
-            val padding = dpToPx(32)
-            setPadding(padding, padding, padding, padding)
+            setPadding(dpToPx(24), dpToPx(32), dpToPx(24), dpToPx(32))
         }
 
-        // Simple header
+        // Header
         val title = TextView(this).apply {
             text = "Admin Panel"
-            textSize = 28f
-            setTextColor(Color.BLACK)
+            textSize = 32f
+            setTextColor(Color.WHITE)
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
         }
@@ -73,32 +67,79 @@ class FullAdminActivity : ComponentActivity() {
         val updateDate = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault())
             .format(java.util.Date(pkgInfo.lastUpdateTime))
         val versionInfo = TextView(this).apply {
-            text = "Version ${pkgInfo.versionName} - $updateDate"
+            text = "v${pkgInfo.versionName} • $updateDate"
             textSize = 14f
-            setTextColor(Color.DKGRAY)
+            setTextColor(Color.parseColor("#888888"))
             gravity = Gravity.CENTER
         }
 
-        layout.addView(title, createLayoutParams(dpToPx(8)))
-        layout.addView(versionInfo, createLayoutParams(dpToPx(24)))
+        layout.addView(title, createLayoutParams(dpToPx(4)))
+        layout.addView(versionInfo, createLayoutParams(dpToPx(32)))
 
-        // Simple buttons
-        val buttons = listOf(
-            createSimpleButton("Settings") { showSettingsDialog() },
-            createSimpleButton("WiFi Settings") { showWifiDialog() },
-            createSimpleButton("Check for Updates") { checkForUpdates() },
-            createSimpleButton("Rollback Version") { showRollbackDialog() },
-            createSimpleButton("Exit Kiosk Mode") { exitKioskMode() },
-            createSimpleButton("Restart Application") { restartApp() },
-            createSimpleButton("Change Password") { showPasswordChangeDialog() },
-            createSimpleButton("Return to Kiosk") { finish() }
-        )
-
-        buttons.forEach { button ->
-            layout.addView(button, createLayoutParams(dpToPx(16)))
+        // Configuration Section
+        layout.addView(createSectionHeader("Configuration"))
+        layout.addView(createModernButton("⚙️  General Settings", "#3D5AFE") { showSettingsDialog() })
+        layout.addView(createModernButton("📶  WiFi Settings", "#3D5AFE") { showWifiDialog() })
+        layout.addView(createModernButton("🔐  Change Password", "#3D5AFE") { showPasswordChangeDialog() })
+        
+        // Updates Section
+        layout.addView(createSectionHeader("Updates"))
+        layout.addView(createModernButton("🔄  Check for Updates", "#00C853") { checkForUpdates() })
+        layout.addView(createModernButton("⏪  Rollback Version", "#FF9800") { showRollbackDialog() })
+        
+        // System Section
+        layout.addView(createSectionHeader("System"))
+        layout.addView(createModernButton("🔃  Restart Application", "#607D8B") { restartApp() })
+        layout.addView(createModernButton("🚪  Exit Kiosk Mode", "#F44336") { exitKioskMode() })
+        
+        // Return button at bottom
+        val returnBtn = Button(this).apply {
+            text = "Return to Kiosk"
+            textSize = 18f
+            setTextColor(Color.WHITE)
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dpToPx(12).toFloat()
+                setColor(Color.parseColor("#4FC3F7"))
+            }
+            setPadding(dpToPx(24), dpToPx(18), dpToPx(24), dpToPx(18))
+            setOnClickListener { finish() }
         }
+        layout.addView(returnBtn, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(0, dpToPx(32), 0, 0) })
 
-        setContentView(layout)
+        scrollView.addView(layout)
+        setContentView(scrollView)
+    }
+    
+    private fun createSectionHeader(text: String): TextView {
+        return TextView(this).apply {
+            this.text = text
+            textSize = 14f
+            setTextColor(Color.parseColor("#888888"))
+            typeface = Typeface.DEFAULT_BOLD
+            setPadding(dpToPx(4), dpToPx(24), 0, dpToPx(12))
+        }
+    }
+    
+    private fun createModernButton(text: String, color: String, action: () -> Unit): Button {
+        return Button(this).apply {
+            this.text = text
+            textSize = 16f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dpToPx(12).toFloat()
+                setColor(Color.parseColor(color))
+            }
+            setPadding(dpToPx(20), dpToPx(18), dpToPx(20), dpToPx(18))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(0, 0, 0, dpToPx(12)) }
+            setOnClickListener { action() }
+        }
     }
 
     private fun dpToPx(dp: Int): Int {
@@ -109,18 +150,6 @@ class FullAdminActivity : ComponentActivity() {
         ).toInt()
     }
 
-    private fun createSimpleButton(text: String, action: () -> Unit): Button {
-        return Button(this).apply {
-            this.text = text
-            textSize = 18f
-            setTextColor(Color.BLACK)
-            setBackgroundColor(Color.LTGRAY)
-            setPadding(dpToPx(24), dpToPx(16), dpToPx(24), dpToPx(16))
-            minHeight = dpToPx(56)
-            gravity = Gravity.CENTER
-            setOnClickListener { action() }
-        }
-    }
     
     private fun createLayoutParams(margin: Int): LinearLayout.LayoutParams {
         return LinearLayout.LayoutParams(
@@ -151,7 +180,7 @@ class FullAdminActivity : ComponentActivity() {
     
     private fun checkForUpdates() {
         Toast.makeText(this, "Checking for updates...", Toast.LENGTH_SHORT).show()
-        scope.launch {
+        lifecycleScope.launch {
             val updateManager = UpdateManager(this@FullAdminActivity)
             when (val result = updateManager.checkForUpdate()) {
                 is UpdateManager.UpdateResult.Available -> {
@@ -161,7 +190,7 @@ class FullAdminActivity : ComponentActivity() {
                         .setMessage("Version ${update.versionName} is available. Install now?")
                         .setPositiveButton("Install") { _, _ ->
                             Toast.makeText(this@FullAdminActivity, "Downloading update...", Toast.LENGTH_SHORT).show()
-                            scope.launch {
+                            lifecycleScope.launch {
                                 val success = updateManager.downloadAndInstall(update)
                                 if (!success) {
                                     Toast.makeText(this@FullAdminActivity, "Update failed", Toast.LENGTH_SHORT).show()
@@ -252,7 +281,7 @@ class FullAdminActivity : ComponentActivity() {
                     Toast.makeText(this, "Already running this version", Toast.LENGTH_SHORT).show()
                     return@setItems
                 }
-                scope.launch {
+                lifecycleScope.launch {
                     Toast.makeText(this@FullAdminActivity, "Installing ${selected.name}...", Toast.LENGTH_SHORT).show()
                     val success = updateManager.installStoredVersion(selected.code)
                     if (!success) {
@@ -333,13 +362,32 @@ class FullAdminActivity : ComponentActivity() {
         val prefs = getSharedPreferences("kiosk_settings", Context.MODE_PRIVATE)
         val isTimeoutEnabled = prefs.getBoolean("timeout_enabled", true)
         val timeoutMinutes = prefs.getInt("timeout_minutes", 5)
-        val shared = PreferenceManager.getDefaultSharedPreferences(this)
-        val currentHome = shared.getString("default_url", "https://www.google.com") ?: "https://www.google.com"
+        val isAlwaysOnEnabled = prefs.getBoolean("always_on_display", true)
+        val shared = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        val currentHome = shared.getString("default_url", "http://192.168.10.12/sdcard/cpt/app/signin.php") ?: "http://192.168.10.12/sdcard/cpt/app/signin.php"
 
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8))
         }
+
+        // Always-on Display Setting
+        val alwaysOnLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val alwaysOnLabel = TextView(this).apply {
+            text = "Always-On Display"
+            textSize = 16f
+            setTextColor(Color.BLACK)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val alwaysOnSwitch = Switch(this).apply {
+            isChecked = isAlwaysOnEnabled
+        }
+        alwaysOnLayout.addView(alwaysOnLabel)
+        alwaysOnLayout.addView(alwaysOnSwitch)
+        layout.addView(alwaysOnLayout, createLayoutParams(dpToPx(16)))
 
         // Enable Timeout Setting
         val enableTimeoutLayout = LinearLayout(this).apply {
@@ -348,7 +396,7 @@ class FullAdminActivity : ComponentActivity() {
         }
 
         val enableTimeoutLabel = TextView(this).apply {
-            text = "Enable Timeout"
+            text = "Enable Auto-Refresh"
             textSize = 16f
             setTextColor(Color.BLACK)
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
@@ -361,9 +409,9 @@ class FullAdminActivity : ComponentActivity() {
         enableTimeoutLayout.addView(enableTimeoutLabel)
         enableTimeoutLayout.addView(enableTimeoutSwitch)
 
-        // Idle Timeout Setting
+        // Auto-Refresh Timeout Setting
         val timeoutLabel = TextView(this).apply {
-            text = "Idle Timeout: $timeoutMinutes minutes"
+            text = "Refresh Interval: $timeoutMinutes minutes"
             textSize = 16f
             setTextColor(Color.BLACK)
         }
@@ -373,7 +421,7 @@ class FullAdminActivity : ComponentActivity() {
             progress = timeoutMinutes - 1
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    timeoutLabel.text = "Idle Timeout: ${progress + 1} minutes"
+                    timeoutLabel.text = "Refresh Interval: ${progress + 1} minutes"
                 }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) {}
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
@@ -400,17 +448,55 @@ class FullAdminActivity : ComponentActivity() {
         layout.addView(homeLabel, createLayoutParams(dpToPx(8)))
         layout.addView(homeEdit, createLayoutParams(dpToPx(16)))
 
+        // Auto-Login Settings
+        val autoLoginEnabled = prefs.getBoolean("auto_login_enabled", true)
+        val autoLoginUser = prefs.getString("auto_login_username", "admin") ?: "admin"
+        val autoLoginPass = prefs.getString("auto_login_password", "f1ref!ghterFARS") ?: "f1ref!ghterFARS"
+
+        val autoLoginLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val autoLoginLabel = TextView(this).apply {
+            text = "Auto-Login"
+            textSize = 16f
+            setTextColor(Color.BLACK)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val autoLoginSwitch = Switch(this).apply { isChecked = autoLoginEnabled }
+        autoLoginLayout.addView(autoLoginLabel)
+        autoLoginLayout.addView(autoLoginSwitch)
+        layout.addView(autoLoginLayout, createLayoutParams(dpToPx(8)))
+
+        val loginUserEdit = EditText(this).apply {
+            hint = "Login Username"
+            inputType = InputType.TYPE_CLASS_TEXT
+            setText(autoLoginUser)
+        }
+        val loginPassEdit = EditText(this).apply {
+            hint = "Login Password"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setText(autoLoginPass)
+        }
+        layout.addView(loginUserEdit, createLayoutParams(dpToPx(8)))
+        layout.addView(loginPassEdit, createLayoutParams(dpToPx(16)))
+
         AlertDialog.Builder(this)
             .setTitle("General Settings")
             .setView(layout)
             .setPositiveButton("Save") { _, _ ->
+                val newAlwaysOn = alwaysOnSwitch.isChecked
                 val newTimeoutEnabled = enableTimeoutSwitch.isChecked
                 val newTimeoutMinutes = timeoutSeekBar.progress + 1
                 val newHome = homeEdit.text.toString().trim()
 
                 prefs.edit()
+                    .putBoolean("always_on_display", newAlwaysOn)
                     .putBoolean("timeout_enabled", newTimeoutEnabled)
                     .putInt("timeout_minutes", newTimeoutMinutes)
+                    .putBoolean("auto_login_enabled", autoLoginSwitch.isChecked)
+                    .putString("auto_login_username", loginUserEdit.text.toString())
+                    .putString("auto_login_password", loginPassEdit.text.toString())
                     .apply()
 
                 if (newHome.isNotEmpty()) {
