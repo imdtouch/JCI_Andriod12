@@ -116,6 +116,9 @@ class UpdateManager(private val context: Context) {
     suspend fun downloadAndInstall(update: UpdateInfo): Boolean = withContext(Dispatchers.IO) {
         val network = getInternetNetwork() ?: return@withContext false
         try {
+            // Save current version before updating
+            saveCurrentVersion()
+            
             val tempFile = File(updatesDir, "temp.apk")
             val finalFile = File(updatesDir, "v${update.versionCode}.apk")
             
@@ -174,6 +177,22 @@ class UpdateManager(private val context: Context) {
         val currentCode = context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
         installApkSilently(apkFile, allowDowngrade = versionCode < currentCode)
         true
+    }
+    
+    private fun saveCurrentVersion() {
+        val pkgInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+        val currentCode = pkgInfo.longVersionCode.toInt()
+        val currentName = pkgInfo.versionName ?: currentCode.toString()
+        
+        // Skip if already saved
+        if (getStoredVersions().any { it.code == currentCode }) return
+        
+        // Copy current APK
+        val sourceApk = File(context.applicationInfo.sourceDir)
+        val destFile = File(updatesDir, "v${currentCode}.apk")
+        sourceApk.copyTo(destFile, overwrite = true)
+        
+        saveVersion(StoredVersion(currentCode, currentName, destFile.name, System.currentTimeMillis()))
     }
     
     private fun saveVersion(version: StoredVersion) {
