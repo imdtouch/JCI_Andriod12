@@ -191,6 +191,11 @@ class UpdateManager(private val context: Context) {
         versionsFile.writeText(arr.toString())
     }
     
+    fun clearStoredVersions() {
+        getStoredVersions().forEach { File(updatesDir, it.file).delete() }
+        versionsFile.delete()
+    }
+    
     private fun pruneOldVersions() {
         val versions = getStoredVersions()
         if (versions.size > MAX_STORED_VERSIONS) {

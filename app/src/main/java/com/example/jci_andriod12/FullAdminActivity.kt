@@ -86,6 +86,10 @@ class FullAdminActivity : ComponentActivity() {
         layout.addView(createSectionHeader("Updates"))
         layout.addView(createModernButton("🔄  Check for Updates", "#00C853") { checkForUpdates() })
         layout.addView(createModernButton("⏪  Rollback Version", "#FF9800") { showRollbackDialog() })
+        layout.addView(createModernButton("🗑️  Clear Rollback History", "#795548") {
+            UpdateManager(this).clearStoredVersions()
+            Toast.makeText(this, "Rollback history cleared", Toast.LENGTH_SHORT).show()
+        })
         
         // System Section
         layout.addView(createSectionHeader("System"))
