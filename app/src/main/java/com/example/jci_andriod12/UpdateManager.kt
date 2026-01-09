@@ -170,7 +170,8 @@ class UpdateManager(private val context: Context) {
         val version = getStoredVersions().find { it.code == versionCode } ?: return@withContext false
         val apkFile = File(updatesDir, version.file)
         if (!apkFile.exists()) return@withContext false
-        installApkSilently(apkFile)
+        val currentCode = context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
+        installApkSilently(apkFile, allowDowngrade = versionCode < currentCode)
         true
     }
     
@@ -221,26 +222,32 @@ class UpdateManager(private val context: Context) {
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
     
-    private fun installApkSilently(apkFile: File) {
+    private fun installApkSilently(apkFile: File, allowDowngrade: Boolean = false) {
+        if (allowDowngrade) {
+            // Use shell command for downgrade since PackageInstaller doesn't support it directly
+            Runtime.getRuntime().exec(arrayOf("pm", "install", "-r", "-d", apkFile.absolutePath))
+            return
+        }
+        
         val packageInstaller = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
-        
+
         val sessionId = packageInstaller.createSession(params)
         val session = packageInstaller.openSession(sessionId)
-        
+
         apkFile.inputStream().use { input ->
             session.openWrite("update.apk", 0, apkFile.length()).use { output ->
                 input.copyTo(output)
                 session.fsync(output)
             }
         }
-        
+
         val intent = Intent(context, UpdateReceiver::class.java)
         val pendingIntent = PendingIntent.getBroadcast(
             context, 0, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
         )
-        
+
         session.commit(pendingIntent.intentSender)
     }
 }
