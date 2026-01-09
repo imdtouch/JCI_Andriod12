@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import androidx.core.content.FileProvider
 import kotlinx.coroutines.*
 import org.json.JSONArray
 import org.json.JSONObject
@@ -228,17 +229,19 @@ class UpdateManager(private val context: Context) {
     }
     
     private fun installApkSilently(apkFile: File, allowDowngrade: Boolean = false) {
+        if (allowDowngrade) {
+            // Use Intent-based install for rollback - shows system dialog
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", apkFile)
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+            }
+            context.startActivity(intent)
+            return
+        }
+
         val packageInstaller = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
-        
-        if (allowDowngrade) {
-            // Set INSTALL_ALLOW_DOWNGRADE flag (0x80) via reflection
-            try {
-                val method = params.javaClass.getDeclaredMethod("setInstallFlags", Int::class.javaPrimitiveType)
-                method.isAccessible = true
-                method.invoke(params, 0x00000080 or 0x00000002) // ALLOW_DOWNGRADE | REPLACE_EXISTING
-            } catch (e: Exception) { }
-        }
 
         val sessionId = packageInstaller.createSession(params)
         val session = packageInstaller.openSession(sessionId)
