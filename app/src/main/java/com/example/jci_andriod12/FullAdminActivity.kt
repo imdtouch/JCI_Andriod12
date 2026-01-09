@@ -188,11 +188,13 @@ class FullAdminActivity : ComponentActivity() {
                         .setTitle("Update Available")
                         .setMessage("Version ${update.versionName} is available. Install now?")
                         .setPositiveButton("Install") { _, _ ->
-                            Toast.makeText(this@FullAdminActivity, "Downloading update...", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this@FullAdminActivity, "Downloading update...", Toast.LENGTH_LONG).show()
                             lifecycleScope.launch {
                                 val success = updateManager.downloadAndInstall(update)
-                                if (!success) {
-                                    Toast.makeText(this@FullAdminActivity, "Update failed", Toast.LENGTH_SHORT).show()
+                                if (success) {
+                                    Toast.makeText(this@FullAdminActivity, "Installing... App will restart", Toast.LENGTH_LONG).show()
+                                } else {
+                                    Toast.makeText(this@FullAdminActivity, "Update failed - check internet connection", Toast.LENGTH_LONG).show()
                                 }
                             }
                         }
