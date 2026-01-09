@@ -250,10 +250,6 @@ class UpdateManager(private val context: Context) {
     private fun installApkSilently(apkFile: File, allowDowngrade: Boolean = false) {
         val packageInstaller = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
-        
-        if (allowDowngrade && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            try { params.setRequestDowngrade(true) } catch (_: Exception) { }
-        }
 
         val sessionId = packageInstaller.createSession(params)
         val session = packageInstaller.openSession(sessionId)

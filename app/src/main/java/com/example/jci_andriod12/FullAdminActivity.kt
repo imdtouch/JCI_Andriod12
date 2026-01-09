@@ -285,6 +285,14 @@ class FullAdminActivity : ComponentActivity() {
                     Toast.makeText(this, "Already running this version", Toast.LENGTH_SHORT).show()
                     return@setItems
                 }
+                if (selected.code < currentVersion) {
+                    AlertDialog.Builder(this)
+                        .setTitle("Downgrade Not Supported")
+                        .setMessage("Android blocks downgrading apps.\n\nTo install v${selected.name}, use ADB:\nadb install -r -d <apk_path>")
+                        .setPositiveButton("OK", null)
+                        .show()
+                    return@setItems
+                }
                 lifecycleScope.launch {
                     Toast.makeText(this@FullAdminActivity, "Installing ${selected.name}...", Toast.LENGTH_SHORT).show()
                     val success = updateManager.installStoredVersion(selected.code)
