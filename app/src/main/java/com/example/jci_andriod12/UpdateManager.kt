@@ -54,6 +54,18 @@ class UpdateManager(private val context: Context) {
     
     fun hasInternet(): Boolean = getInternetNetwork() != null
     
+    private fun compareVersions(v1: String, v2: String): Int {
+        val parts1 = v1.split(".").map { it.toIntOrNull() ?: 0 }
+        val parts2 = v2.split(".").map { it.toIntOrNull() ?: 0 }
+        val maxLen = maxOf(parts1.size, parts2.size)
+        for (i in 0 until maxLen) {
+            val p1 = parts1.getOrElse(i) { 0 }
+            val p2 = parts2.getOrElse(i) { 0 }
+            if (p1 != p2) return p1.compareTo(p2)
+        }
+        return 0
+    }
+    
     suspend fun checkForUpdate(): UpdateResult = withContext(Dispatchers.IO) {
         val network = getInternetNetwork() ?: return@withContext UpdateResult.NoInternet
         
@@ -67,10 +79,10 @@ class UpdateManager(private val context: Context) {
             
             val release = JSONObject(json)
             val tagName = release.getString("tag_name")
-            val remoteVersion = tagName.removePrefix("v").toIntOrNull() ?: return@withContext UpdateResult.Error("Invalid version")
-            val currentVersion = context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
+            val remoteVersionName = tagName.removePrefix("v")
+            val currentVersionName = context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0"
             
-            if (remoteVersion <= currentVersion) return@withContext UpdateResult.UpToDate
+            if (compareVersions(remoteVersionName, currentVersionName) <= 0) return@withContext UpdateResult.UpToDate
             
             val assets = release.getJSONArray("assets")
             var apkUrl: String? = null
@@ -86,7 +98,8 @@ class UpdateManager(private val context: Context) {
             }
             
             if (apkUrl != null) {
-                UpdateResult.Available(UpdateInfo(remoteVersion, tagName, apkUrl, checksumUrl))
+                val versionCode = context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt() + 1
+                UpdateResult.Available(UpdateInfo(versionCode, remoteVersionName, apkUrl, checksumUrl))
             } else {
                 UpdateResult.Error("No APK in release")
             }
