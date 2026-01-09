@@ -248,19 +248,12 @@ class UpdateManager(private val context: Context) {
     }
     
     private fun installApkSilently(apkFile: File, allowDowngrade: Boolean = false) {
-        if (allowDowngrade) {
-            // Use Intent-based install for rollback - shows system dialog
-            val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", apkFile)
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-            }
-            context.startActivity(intent)
-            return
-        }
-
         val packageInstaller = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+        
+        if (allowDowngrade && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            try { params.setRequestDowngrade(true) } catch (_: Exception) { }
+        }
 
         val sessionId = packageInstaller.createSession(params)
         val session = packageInstaller.openSession(sessionId)
