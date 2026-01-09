@@ -223,14 +223,17 @@ class UpdateManager(private val context: Context) {
     }
     
     private fun installApkSilently(apkFile: File, allowDowngrade: Boolean = false) {
-        if (allowDowngrade) {
-            // Use shell command for downgrade since PackageInstaller doesn't support it directly
-            Runtime.getRuntime().exec(arrayOf("pm", "install", "-r", "-d", apkFile.absolutePath))
-            return
-        }
-        
         val packageInstaller = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+        
+        if (allowDowngrade) {
+            // Set INSTALL_ALLOW_DOWNGRADE flag (0x80) via reflection
+            try {
+                val method = params.javaClass.getDeclaredMethod("setInstallFlags", Int::class.javaPrimitiveType)
+                method.isAccessible = true
+                method.invoke(params, 0x00000080 or 0x00000002) // ALLOW_DOWNGRADE | REPLACE_EXISTING
+            } catch (e: Exception) { }
+        }
 
         val sessionId = packageInstaller.createSession(params)
         val session = packageInstaller.openSession(sessionId)
