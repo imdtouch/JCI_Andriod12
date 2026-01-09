@@ -267,10 +267,10 @@ class FullAdminActivity : ComponentActivity() {
         
         val currentVersion = packageManager.getPackageInfo(packageName, 0).longVersionCode.toInt()
         val items = versions.map { v ->
-            val date = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault())
+            val datetime = java.text.SimpleDateFormat("MMM d, yyyy h:mm a", java.util.Locale.getDefault())
                 .format(java.util.Date(v.date))
             val current = if (v.code == currentVersion) " (current)" else ""
-            "${v.name}$current - $date"
+            "v${v.name}$current\n$datetime"
         }.toTypedArray()
         
         AlertDialog.Builder(this)
