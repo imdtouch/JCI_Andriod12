@@ -85,11 +85,6 @@ class FullAdminActivity : ComponentActivity() {
         // Updates Section
         layout.addView(createSectionHeader("Updates"))
         layout.addView(createModernButton("🔄  Check for Updates", "#00C853") { checkForUpdates() })
-        layout.addView(createModernButton("⏪  Rollback Version", "#FF9800") { showRollbackDialog() })
-        layout.addView(createModernButton("🗑️  Clear Rollback History", "#795548") {
-            UpdateManager(this).clearStoredVersions()
-            Toast.makeText(this, "Rollback history cleared", Toast.LENGTH_SHORT).show()
-        })
         
         // System Section
         layout.addView(createSectionHeader("System"))
@@ -260,51 +255,6 @@ class FullAdminActivity : ComponentActivity() {
             .show()
     }
     
-    private fun showRollbackDialog() {
-        val updateManager = UpdateManager(this)
-        val versions = updateManager.getStoredVersions()
-        
-        if (versions.isEmpty()) {
-            Toast.makeText(this, "No previous versions available", Toast.LENGTH_SHORT).show()
-            return
-        }
-        
-        val currentVersion = packageManager.getPackageInfo(packageName, 0).longVersionCode.toInt()
-        val items = versions.map { v ->
-            val datetime = java.text.SimpleDateFormat("MMM d, yyyy h:mm a", java.util.Locale.getDefault())
-                .format(java.util.Date(v.date))
-            val current = if (v.code == currentVersion) " (current)" else ""
-            "v${v.name}$current\n$datetime"
-        }.toTypedArray()
-        
-        AlertDialog.Builder(this)
-            .setTitle("Select Version to Install")
-            .setItems(items) { _, which ->
-                val selected = versions[which]
-                if (selected.code == currentVersion) {
-                    Toast.makeText(this, "Already running this version", Toast.LENGTH_SHORT).show()
-                    return@setItems
-                }
-                if (selected.code < currentVersion) {
-                    AlertDialog.Builder(this)
-                        .setTitle("Downgrade Not Supported")
-                        .setMessage("Android blocks downgrading apps.\n\nTo install v${selected.name}, use ADB:\nadb install -r -d <apk_path>")
-                        .setPositiveButton("OK", null)
-                        .show()
-                    return@setItems
-                }
-                lifecycleScope.launch {
-                    Toast.makeText(this@FullAdminActivity, "Installing ${selected.name}...", Toast.LENGTH_SHORT).show()
-                    val success = updateManager.installStoredVersion(selected.code)
-                    if (!success) {
-                        Toast.makeText(this@FullAdminActivity, "Install failed", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
     private fun showPasswordChangeDialog() {
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL

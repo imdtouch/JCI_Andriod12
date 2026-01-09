@@ -6,26 +6,19 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import androidx.core.content.FileProvider
 import kotlinx.coroutines.*
-import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.net.URL
-import java.security.MessageDigest
 
-// GitHub repository configuration
 const val GITHUB_OWNER = "imdtouch"
 const val GITHUB_REPO = "JCI_Andriod12"
-const val MAX_STORED_VERSIONS = 10
 
 class UpdateManager(private val context: Context) {
     
     private val updatesDir = File(context.filesDir, "updates").apply { mkdirs() }
-    private val versionsFile = File(updatesDir, "versions.json")
     
     data class UpdateInfo(val versionCode: Int, val versionName: String, val apkUrl: String, val checksumUrl: String?)
-    data class StoredVersion(val code: Int, val name: String, val file: String, val date: Long)
     sealed class UpdateResult {
         data class Available(val info: UpdateInfo) : UpdateResult()
         object UpToDate : UpdateResult()
@@ -116,138 +109,20 @@ class UpdateManager(private val context: Context) {
     suspend fun downloadAndInstall(update: UpdateInfo): Boolean = withContext(Dispatchers.IO) {
         val network = getInternetNetwork() ?: return@withContext false
         try {
-            // Save current version before updating
-            saveCurrentVersion()
-            
             val tempFile = File(updatesDir, "temp.apk")
-            val finalFile = File(updatesDir, "v${update.versionCode}.apk")
             
-            // Download APK via WiFi/internet network
             network.openConnection(URL(update.apkUrl)).getInputStream().use { input ->
                 tempFile.outputStream().use { output -> input.copyTo(output) }
             }
             
-            // Verify checksum if available
-            if (update.checksumUrl != null) {
-                try {
-                    val checksums = network.openConnection(URL(update.checksumUrl)).getInputStream().bufferedReader().readText()
-                    // Find a 64-char hex string (SHA256)
-                    val hashRegex = Regex("[a-fA-F0-9]{64}")
-                    val expectedHash = hashRegex.find(checksums)?.value?.lowercase()
-                    
-                    if (expectedHash != null) {
-                        val actualHash = tempFile.sha256()
-                        if (actualHash != expectedHash) {
-                            tempFile.delete()
-                            return@withContext false
-                        }
-                    }
-                } catch (_: Exception) {
-                    // Skip verification if checksum fetch fails
-                }
-            }
-            
-            // Move to final location and save metadata
-            tempFile.renameTo(finalFile)
-            saveVersion(StoredVersion(update.versionCode, update.versionName, finalFile.name, System.currentTimeMillis()))
-            pruneOldVersions()
-            
-            installApkSilently(finalFile)
+            installApkSilently(tempFile)
             true
         } catch (e: Exception) {
             false
         }
     }
     
-    fun getStoredVersions(): List<StoredVersion> {
-        if (!versionsFile.exists()) return emptyList()
-        return try {
-            val arr = JSONArray(versionsFile.readText())
-            (0 until arr.length()).map { i ->
-                val obj = arr.getJSONObject(i)
-                StoredVersion(obj.getInt("code"), obj.getString("name"), obj.getString("file"), obj.getLong("date"))
-            }.filter { File(updatesDir, it.file).exists() }.sortedByDescending { it.code }
-        } catch (e: Exception) { emptyList() }
-    }
-    
-    suspend fun installStoredVersion(versionCode: Int): Boolean = withContext(Dispatchers.IO) {
-        val version = getStoredVersions().find { it.code == versionCode } ?: return@withContext false
-        val apkFile = File(updatesDir, version.file)
-        if (!apkFile.exists()) return@withContext false
-        val currentCode = context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
-        installApkSilently(apkFile, allowDowngrade = versionCode < currentCode)
-        true
-    }
-    
-    private fun saveCurrentVersion() {
-        val pkgInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-        val currentCode = pkgInfo.longVersionCode.toInt()
-        val currentName = pkgInfo.versionName ?: currentCode.toString()
-        
-        // Skip if already saved
-        if (getStoredVersions().any { it.code == currentCode }) return
-        
-        // Copy current APK
-        val sourceApk = File(context.applicationInfo.sourceDir)
-        val destFile = File(updatesDir, "v${currentCode}.apk")
-        sourceApk.copyTo(destFile, overwrite = true)
-        
-        saveVersion(StoredVersion(currentCode, currentName, destFile.name, System.currentTimeMillis()))
-    }
-    
-    private fun saveVersion(version: StoredVersion) {
-        val versions = getStoredVersions().toMutableList()
-        versions.removeAll { it.code == version.code }
-        versions.add(0, version)
-        val arr = JSONArray()
-        versions.forEach { v ->
-            arr.put(JSONObject().apply {
-                put("code", v.code)
-                put("name", v.name)
-                put("file", v.file)
-                put("date", v.date)
-            })
-        }
-        versionsFile.writeText(arr.toString())
-    }
-    
-    fun clearStoredVersions() {
-        getStoredVersions().forEach { File(updatesDir, it.file).delete() }
-        versionsFile.delete()
-    }
-    
-    private fun pruneOldVersions() {
-        val versions = getStoredVersions()
-        if (versions.size > MAX_STORED_VERSIONS) {
-            versions.drop(MAX_STORED_VERSIONS).forEach { old ->
-                File(updatesDir, old.file).delete()
-            }
-            val arr = JSONArray()
-            versions.take(MAX_STORED_VERSIONS).forEach { v ->
-                arr.put(JSONObject().apply {
-                    put("code", v.code)
-                    put("name", v.name)
-                    put("file", v.file)
-                    put("date", v.date)
-                })
-            }
-            versionsFile.writeText(arr.toString())
-        }
-    }
-    
-    private fun File.sha256(): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        inputStream().use { input ->
-            val buffer = ByteArray(8192)
-            var read: Int
-            while (input.read(buffer).also { read = it } != -1) {
-                digest.update(buffer, 0, read)
-            }
-        }
-        return digest.digest().joinToString("") { "%02x".format(it) }
-    }
-    
-    private fun installApkSilently(apkFile: File, allowDowngrade: Boolean = false) {
+    private fun installApkSilently(apkFile: File) {
         val packageInstaller = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
 
