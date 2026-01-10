@@ -4,11 +4,9 @@ import android.content.Context
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ViewConfiguration
-import android.util.TypedValue
-import kotlin.math.abs
 
 class EdgeSwipeDetector(
-    private val context: Context,
+    context: Context,
     private val screenExtent: Int,
     private val onEdgeSwipe: () -> Unit,
     private val requireTwoFingers: Boolean = false,
@@ -16,14 +14,9 @@ class EdgeSwipeDetector(
 ) : GestureDetector.SimpleOnGestureListener() {
 
     private val viewConfig = ViewConfiguration.get(context)
-    
-    // Use Android system values for better responsiveness
     private val edgeThreshold = viewConfig.scaledEdgeSlop.toFloat() * 2
     private val minSwipeDistance = viewConfig.scaledTouchSlop.toFloat() * 2
     private val minVelocity = viewConfig.scaledMinimumFlingVelocity.toFloat() / 4
-    private val minEdgeOffsetPx = TypedValue.applyDimension(
-        TypedValue.COMPLEX_UNIT_DIP, 16f, context.resources.displayMetrics
-    )
 
     override fun onDown(e: MotionEvent): Boolean {
         return true

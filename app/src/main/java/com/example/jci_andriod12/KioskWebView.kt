@@ -38,8 +38,7 @@ interface ConnectionStateListener {
 
 class KioskWebView(
     context: Context,
-    private val onRevealControls: () -> Unit,
-    private val onPasswordPrompt: () -> Unit
+    private val onRevealControls: () -> Unit
 ) : FrameLayout(context) {
 
     private val webView: WebView

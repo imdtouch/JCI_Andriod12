@@ -86,7 +86,7 @@ class MainActivity : ComponentActivity() {
     }
     
     private fun setupWebView() {
-        kioskWebView = KioskWebView(this, { revealControls() }, { showPasswordPrompt() })
+        kioskWebView = KioskWebView(this) { revealControls() }
         val container = findViewById<FrameLayout>(R.id.contentContainer)
         container.addView(
             kioskWebView,
