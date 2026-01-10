@@ -85,6 +85,7 @@ class FullAdminActivity : ComponentActivity() {
         // Updates Section
         layout.addView(createSectionHeader("Updates"))
         layout.addView(createModernButton("🔄  Check for Updates", "#00C853") { checkForUpdates() })
+        // layout.addView(createModernButton("⏪  Rollback Version", "#FF9800") { showRollbackDialog() })
         
         // System Section
         layout.addView(createSectionHeader("System"))

@@ -10,7 +10,7 @@ class EdgeSwipeDetector(
     private val screenExtent: Int,
     private val onEdgeSwipe: () -> Unit,
     private val requireTwoFingers: Boolean = false,
-    private val detectHorizontal: Boolean = false
+    @Suppress("unused") private val detectHorizontal: Boolean = false
 ) : GestureDetector.SimpleOnGestureListener() {
 
     private val viewConfig = ViewConfiguration.get(context)

@@ -24,21 +24,12 @@ import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 
-// Connection state enum for clean state management
-enum class ConnectionState {
-    LOADING,
-    CONNECTED,
-    DISCONNECTED
-}
-
-// Listener interface for connection state changes
-interface ConnectionStateListener {
-    fun onConnectionStateChanged(state: ConnectionState, errorMessage: String?)
-}
+enum class ConnectionState { LOADING, CONNECTED, DISCONNECTED }
 
 class KioskWebView(
     context: Context,
-    private val onRevealControls: () -> Unit
+    private val onRevealControls: () -> Unit,
+    private val onPasswordPrompt: () -> Unit
 ) : FrameLayout(context) {
 
     private val webView: WebView
@@ -62,24 +53,15 @@ class KioskWebView(
         }
     }
     
-    // Connection state management
     private var connectionState: ConnectionState = ConnectionState.LOADING
-    private var connectionStateListener: ConnectionStateListener? = null
     private var lastErrorMessage: String? = null
     private lateinit var errorOverlay: LinearLayout
     private lateinit var errorMessageText: TextView
-    
-    fun setConnectionStateListener(listener: ConnectionStateListener?) {
-        connectionStateListener = listener
-    }
-    
-    fun getConnectionState(): ConnectionState = connectionState
     
     private fun setConnectionState(state: ConnectionState, errorMessage: String? = null) {
         if (connectionState != state || errorMessage != lastErrorMessage) {
             connectionState = state
             lastErrorMessage = errorMessage
-            connectionStateListener?.onConnectionStateChanged(state, errorMessage)
             updateErrorOverlay()
         }
     }

@@ -39,11 +39,6 @@
         </activity>
 
         <activity
-            android:name="com.example.jci_andriod12.AdminActivity"
-            android:exported="false"
-            android:theme="@style/Theme.JCI_Andriod12" />
-
-        <activity
             android:name="com.example.jci_andriod12.FullAdminActivity"
             android:exported="false"
             android:theme="@style/Theme.JCI_Andriod12" />

@@ -20,8 +20,6 @@ import android.os.Looper
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import androidx.core.view.WindowCompat
-import android.view.Menu
-import android.view.MenuItem
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageButton
@@ -33,15 +31,6 @@ import android.view.WindowManager
 class MainActivity : ComponentActivity() {
     private lateinit var devicePolicyManager: DevicePolicyManager
     private lateinit var adminComponent: ComponentName
-    
-    // Menu item references
-    private var mHome: MenuItem? = null
-    private var mBack: MenuItem? = null
-    private var mForward: MenuItem? = null
-    private var mSettings: MenuItem? = null
-    
-    // Configuration variables
-    private var showBrowserControls = true
     private var defaultUrl = "http://192.168.10.12"
     
     // WebView reference
@@ -59,9 +48,8 @@ class MainActivity : ComponentActivity() {
         devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
         adminComponent = ComponentName(this, KioskDeviceAdminReceiver::class.java)
         
-        // Load preferences
         prefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-        loadPreferences()
+        defaultUrl = prefs.getString("default_url", "http://192.168.10.12/sdcard/cpt/app/signin.php") ?: "http://192.168.10.12/sdcard/cpt/app/signin.php"
         
         // Setup WebView
         setupWebView()
@@ -79,14 +67,8 @@ class MainActivity : ComponentActivity() {
         preferEthernet()
     }
     
-    private fun loadPreferences() {
-        showBrowserControls = prefs.getBoolean("show_browser_controls", true)
-        defaultUrl = prefs.getString("default_url", "http://192.168.10.12/sdcard/cpt/app/signin.php") ?: "http://192.168.10.12/sdcard/cpt/app/signin.php"
-        // Orientation handled via Android Display settings now
-    }
-    
     private fun setupWebView() {
-        kioskWebView = KioskWebView(this) { revealControls() }
+        kioskWebView = KioskWebView(this, { revealControls() }, { showPasswordPrompt() })
         val container = findViewById<FrameLayout>(R.id.contentContainer)
         container.addView(
             kioskWebView,
@@ -209,65 +191,10 @@ class MainActivity : ComponentActivity() {
         findViewById<android.view.View>(R.id.zoomBar)?.visibility = android.view.View.GONE
     }
     
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        // Inflate the menu XML
-        menuInflater.inflate(R.menu.main, menu)
-        
-        // Get references to menu items
-        mHome = menu.findItem(R.id.action_home)
-        mBack = menu.findItem(R.id.action_back)
-        mForward = menu.findItem(R.id.action_forward)
-        mSettings = menu.findItem(R.id.action_settings)
-        
-        // Configure visibility based on settings
-        mSettings?.isVisible = true
-        mHome?.isVisible = showBrowserControls
-        mBack?.isVisible = showBrowserControls
-        mForward?.isVisible = showBrowserControls
-        
-        return true
-    }
-    
-    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        // Update back/forward button states based on WebView navigation
-        mBack?.isEnabled = kioskWebView.canGoBack()
-        mForward?.isEnabled = kioskWebView.canGoForward()
-        return super.onPrepareOptionsMenu(menu)
-    }
-    
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            R.id.action_home -> {
-                kioskWebView.loadUrl(defaultUrl)
-                true
-            }
-            R.id.action_back -> {
-                kioskWebView.goBack()
-                invalidateOptionsMenu() // Refresh menu state
-                true
-            }
-            R.id.action_forward -> {
-                kioskWebView.goForward()
-                invalidateOptionsMenu() // Refresh menu state
-                true
-            }
-            R.id.action_settings -> {
-                openAdminScreen()
-                true
-            }
-            else -> super.onOptionsItemSelected(item)
-        }
-    }
-    
     private fun setupBackHandler() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                // In kiosk mode, use WebView navigation if available, otherwise do nothing
-                if (kioskWebView.canGoBack()) {
-                    kioskWebView.goBack()
-                    invalidateOptionsMenu()
-                }
-                // Don't finish activity to prevent exiting kiosk mode
+                if (kioskWebView.canGoBack()) kioskWebView.goBack()
             }
         })
     }
@@ -350,13 +277,6 @@ class MainActivity : ComponentActivity() {
             .show()
     }
     
-    private fun openAdminScreen() {
-        val intent = Intent(this, AdminActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
-        startActivity(intent)
-    }
-    
     private fun openFullAdminScreen() {
         val intent = Intent(this, FullAdminActivity::class.java)
         startActivity(intent)
@@ -391,10 +311,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        loadPreferences()
+        defaultUrl = prefs.getString("default_url", "http://192.168.10.12/sdcard/cpt/app/signin.php") ?: "http://192.168.10.12/sdcard/cpt/app/signin.php"
         hideSystemUI()
         applyAlwaysOnDisplay()
-        invalidateOptionsMenu() // Update menu state when resuming
         updateNavButtons()
         if (this::kioskWebView.isInitialized) {
             kioskWebView.restartIdleTimer()
