@@ -54,6 +54,10 @@
 
 ## Version History
 
+### v4.13 (2026-01-09)
+- Added "Prefer Ethernet over WiFi" toggle in General Settings
+- Allows disabling ethernet priority to use WiFi instead
+
 ### v4.12 (2026-01-09)
 - Removed unused code (getPageInfo, reload wrapper, orphan callbacks)
 - Fixed unused imports and variables

@@ -326,6 +326,7 @@ class FullAdminActivity : ComponentActivity() {
         val isTimeoutEnabled = prefs.getBoolean("timeout_enabled", true)
         val timeoutMinutes = prefs.getInt("timeout_minutes", 5)
         val isAlwaysOnEnabled = prefs.getBoolean("always_on_display", true)
+        val isEthernetEnabled = prefs.getBoolean("prefer_ethernet", true)
         val shared = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
         val currentHome = shared.getString("default_url", "http://192.168.10.12/sdcard/cpt/app/signin.php") ?: "http://192.168.10.12/sdcard/cpt/app/signin.php"
 
@@ -350,7 +351,25 @@ class FullAdminActivity : ComponentActivity() {
         }
         alwaysOnLayout.addView(alwaysOnLabel)
         alwaysOnLayout.addView(alwaysOnSwitch)
-        layout.addView(alwaysOnLayout, createLayoutParams(dpToPx(16)))
+        layout.addView(alwaysOnLayout, createLayoutParams(dpToPx(8)))
+
+        // Prefer Ethernet Setting
+        val ethernetLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val ethernetLabel = TextView(this).apply {
+            text = "Prefer Ethernet over WiFi"
+            textSize = 16f
+            setTextColor(Color.BLACK)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val ethernetSwitch = Switch(this).apply {
+            isChecked = isEthernetEnabled
+        }
+        ethernetLayout.addView(ethernetLabel)
+        ethernetLayout.addView(ethernetSwitch)
+        layout.addView(ethernetLayout, createLayoutParams(dpToPx(16)))
 
         // Enable Timeout Setting
         val enableTimeoutLayout = LinearLayout(this).apply {
@@ -448,19 +467,16 @@ class FullAdminActivity : ComponentActivity() {
             .setTitle("General Settings")
             .setView(layout)
             .setPositiveButton("Save") { _, _ ->
-                val newAlwaysOn = alwaysOnSwitch.isChecked
-                val newTimeoutEnabled = enableTimeoutSwitch.isChecked
-                val newTimeoutMinutes = timeoutSeekBar.progress + 1
-                val newHome = homeEdit.text.toString().trim()
-
                 prefs.edit()
-                    .putBoolean("always_on_display", newAlwaysOn)
-                    .putBoolean("timeout_enabled", newTimeoutEnabled)
-                    .putInt("timeout_minutes", newTimeoutMinutes)
+                    .putBoolean("always_on_display", alwaysOnSwitch.isChecked)
+                    .putBoolean("prefer_ethernet", ethernetSwitch.isChecked)
+                    .putBoolean("timeout_enabled", enableTimeoutSwitch.isChecked)
+                    .putInt("timeout_minutes", timeoutSeekBar.progress + 1)
                     .putBoolean("auto_login_enabled", autoLoginSwitch.isChecked)
                     .putString("auto_login_username", loginUserEdit.text.toString())
                     .putString("auto_login_password", loginPassEdit.text.toString())
                     .apply()
+                val newHome = homeEdit.text.toString().trim()
 
                 if (newHome.isNotEmpty()) {
                     shared.edit().putString("default_url", newHome).apply()

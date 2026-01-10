@@ -332,6 +332,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun preferEthernet() {
+        val kioskPrefs = getSharedPreferences("kiosk_settings", Context.MODE_PRIVATE)
+        if (!kioskPrefs.getBoolean("prefer_ethernet", true)) return
+        
         val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
         val request = NetworkRequest.Builder()
             .addTransportType(NetworkCapabilities.TRANSPORT_ETHERNET)
@@ -341,7 +344,7 @@ class MainActivity : ComponentActivity() {
                 cm.bindProcessToNetwork(network)
             }
             override fun onLost(network: Network) {
-                cm.bindProcessToNetwork(null) // Fall back to default (WiFi)
+                cm.bindProcessToNetwork(null)
             }
         })
     }
