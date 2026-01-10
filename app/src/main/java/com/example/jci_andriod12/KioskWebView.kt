@@ -22,14 +22,12 @@ import android.widget.TextView
 import android.view.GestureDetector
 import android.view.View
 import android.view.WindowInsets
-import android.view.WindowInsetsController
 
 enum class ConnectionState { LOADING, CONNECTED, DISCONNECTED }
 
 class KioskWebView(
     context: Context,
-    private val onRevealControls: () -> Unit,
-    private val onPasswordPrompt: () -> Unit
+    private val onRevealControls: () -> Unit
 ) : FrameLayout(context) {
 
     private val webView: WebView
@@ -173,11 +171,9 @@ class KioskWebView(
             
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                // Only set CONNECTED if we haven't received an error
                 if (connectionState != ConnectionState.DISCONNECTED) {
                     setConnectionState(ConnectionState.CONNECTED)
                 }
-                (context as? MainActivity)?.let { it.invalidateOptionsMenu() }
                 attemptAutoLogin()
             }
             
@@ -298,50 +294,12 @@ class KioskWebView(
         }
     }
     
-    fun reload() {
-        webView.reload()
-    }
-    
     fun setZoom(zoomLevel: Float) {
         val zoomPercent = (zoomLevel * 100).toInt()
         webView.evaluateJavascript(
             "document.body.style.zoom = '${zoomPercent}%';",
             null
         )
-    }
-    
-    fun getPageInfo(callback: (String) -> Unit) {
-        webView.evaluateJavascript("""
-            (function() {
-                var inputs = document.querySelectorAll('input');
-                var buttons = document.querySelectorAll('button, input[type="submit"]');
-                var forms = document.querySelectorAll('form');
-                var result = {
-                    url: window.location.href,
-                    title: document.title,
-                    inputs: [],
-                    buttons: [],
-                    forms: forms.length
-                };
-                inputs.forEach(function(inp) {
-                    result.inputs.push({
-                        type: inp.type,
-                        id: inp.id,
-                        name: inp.name,
-                        placeholder: inp.placeholder,
-                        value: inp.value ? '[has value]' : ''
-                    });
-                });
-                buttons.forEach(function(btn) {
-                    result.buttons.push({
-                        type: btn.type,
-                        id: btn.id,
-                        text: btn.innerText || btn.value
-                    });
-                });
-                return JSON.stringify(result, null, 2);
-            })();
-        """) { result -> callback(result) }
     }
     
     private fun attemptAutoLogin() {
